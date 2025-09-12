@@ -16,3 +16,4 @@ venv/
 
 # Remote dev
 .devcontainer/
+.prettierrc
