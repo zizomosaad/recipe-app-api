@@ -1,241 +1,272 @@
-"""Test recipe APIs."""
+"""Test recipe APIs."""  # File docstring describing the purpose of the file
 
-from decimal import Decimal
+from decimal import Decimal  # Import Decimal for precise price values
 
-from django.contrib.auth import get_user_model
-from django.test import TestCase
-from django.urls import reverse
+from django.contrib.auth import get_user_model  # Import function to get the custom user model
+from django.test import TestCase  # Import Django's test case class
+from django.urls import reverse  # Import reverse to build URLs from route names
 
-from rest_framework import status
-from rest_framework.test import APIClient
+from rest_framework import status  # Import HTTP status codes
+from rest_framework.test import APIClient  # Import DRF's APIClient for API testing
 
-from core.models import Recipe, Tag
+from core.models import Recipe, Tag  # Import Recipe and Tag models from core app
 
-from recipe.serializers import RecipeSerializer, RecipeDetailSerializer
+from recipe.serializers import RecipeSerializer, RecipeDetailSerializer  # Import serializers for recipes
 
-
-RECIPES_URL = reverse("recipe:recipe-list")
+RECIPES_URL = reverse("recipe:recipe-list")  # Build the URL for the recipe list endpoint
 
 
 def detail_url(recipe_id):
-    """Create and return a recipe detail URL."""
-    return reverse("recipe:recipe-detail", args=[recipe_id])
+    """Create and return a recipe detail URL."""  # Docstring for the helper function
+    return reverse("recipe:recipe-detail", args=[recipe_id])  # Build the detail URL for a specific recipe
 
 
 def create_recipe(user, **params):
-    """Helper function that creates and returns a new recipe"""
+    """Helper function that creates and returns a new recipe"""  # Docstring for the helper function
 
     defaults = {
-        "title": "Sample recipe title",
-        "time_minutes": 22,
-        "price": Decimal("5.25"),
-        "description": "Sample description",
-        "link": "http://example.com/recipe.pdf",
+        "title": "Sample recipe title",  # Default title for the recipe
+        "time_minutes": 22,  # Default time in minutes
+        "price": Decimal("5.25"),  # Default price using Decimal
+        "description": "Sample description",  # Default description
+        "link": "http://example.com/recipe.pdf",  # Default link
     }
-    defaults.update(params)
+    defaults.update(params)  # Update defaults with any provided parameters
 
-    recipe = Recipe.objects.create(user=user, **defaults)
-    return recipe
+    recipe = Recipe.objects.create(user=user, **defaults)  # Create a new Recipe object with the user and defaults
+    return recipe  # Return the created recipe
 
 
 def create_user(**params):
-    """Create and return a new user"""
-    return get_user_model().objects.create_user(**params)
+    """Create and return a new user"""  # Docstring for the helper function
+    return get_user_model().objects.create_user(**params)  # Create and return a new user using the custom user model
 
 
 class PublicRecipeAPITests(TestCase):
-    """Test unauthenticated API requests."""
+    """Test unauthenticated API requests."""  # Docstring for the test class
 
     def setUp(self):
-        self.client = APIClient()
+        self.client = APIClient()  # Set up the API client for making requests
 
     def test_auth_required(self):
-        """Test auth is required to call API."""
-        res = self.client.get(RECIPES_URL)
+        """Test auth is required to call API."""  # Docstring for the test
+        res = self.client.get(RECIPES_URL)  # Make a GET request to the recipes endpoint
 
-        self.assertEqual(res.status_code, status.HTTP_401_UNAUTHORIZED)
+        self.assertEqual(res.status_code, status.HTTP_401_UNAUTHORIZED)  # Assert that the response status is 401
 
 
 class PrivateRecipeAPITests(TestCase):
-    """Test authenticated API requests."""
+    """Test authenticated API requests."""  # Docstring for the test class
 
     def setUp(self):
-        self.client = APIClient()
-        self.user = create_user(email="user@example.com", password="testpass123")
+        self.client = APIClient()  # Set up the API client
+        self.user = create_user(email="user@example.com", password="testpass123")  # Create a test user
 
-        self.client.force_authenticate(self.user)
+        self.client.force_authenticate(self.user)  # Authenticate the client with the test user
 
     def test_retrieve_recipes(self):
-        """Test retrieving user's list of recipes."""
-        create_recipe(user=self.user)
-        create_recipe(user=self.user)
+        """Test retrieving user's list of recipes."""  # Docstring for the test
+        create_recipe(user=self.user)  # Create a recipe for the user
+        create_recipe(user=self.user)  # Create another recipe for the user
 
-        res = self.client.get(RECIPES_URL)
+        res = self.client.get(RECIPES_URL)  # Make a GET request to the recipes endpoint
 
-        recipes = Recipe.objects.all().order_by("-id")
-        serializer = RecipeSerializer(recipes, many=True)
+        recipes = Recipe.objects.all().order_by("-id")  # Get all recipes ordered by id descending
+        serializer = RecipeSerializer(recipes, many=True)  # Serialize the recipes
 
-        self.assertEqual(res.status_code, status.HTTP_200_OK)
-        self.assertEqual(res.data, serializer.data)
+        self.assertEqual(res.status_code, status.HTTP_200_OK)  # Assert that the response status is 200
+        self.assertEqual(res.data, serializer.data)  # Assert that the response data matches the serialized data
 
     def test_recipe_list_limited_to_user(self):
-        """Test list of recipes is limited to authenticated user."""
-        other_user = create_user(email="otheruser@exmaple.com", password="testpass321")
+        """Test list of recipes is limited to authenticated user."""  # Docstring for the test
+        other_user = create_user(email="otheruser@exmaple.com", password="testpass321")  # Create another user
 
-        create_recipe(user=other_user)
-        create_recipe(user=self.user)
+        create_recipe(user=other_user)  # Create a recipe for the other user
+        create_recipe(user=self.user)  # Create a recipe for the authenticated user
 
-        res = self.client.get(RECIPES_URL)
+        res = self.client.get(RECIPES_URL)  # Make a GET request to the recipes endpoint
 
-        recipes = Recipe.objects.filter(user=self.user)
-        serializer = RecipeSerializer(recipes, many=True)
-        self.assertEqual(res.status_code, status.HTTP_200_OK)
-        self.assertEqual(res.data, serializer.data)
+        recipes = Recipe.objects.filter(user=self.user)  # Filter recipes by the authenticated user
+        serializer = RecipeSerializer(recipes, many=True)  # Serialize the filtered recipes
+        self.assertEqual(res.status_code, status.HTTP_200_OK)  # Assert that the response status is 200
+        self.assertEqual(res.data, serializer.data)  # Assert that the response data matches the serialized data
 
     def test_get_recipe_detail(self):
-        """Test get recipe detail"""
+        """Test get recipe detail"""  # Docstring for the test
 
-        recipe = create_recipe(user=self.user)
+        recipe = create_recipe(user=self.user)  # Create a recipe for the user
 
-        url = detail_url(recipe.id)
-        res = self.client.get(url)
+        url = detail_url(recipe.id)  # Build the detail URL for the recipe
+        res = self.client.get(url)  # Make a GET request to the recipe detail endpoint
 
-        serializer = RecipeDetailSerializer(recipe)
-        self.assertEqual(res.data, serializer.data)
-        self.assertEqual(res.status_code, status.HTTP_200_OK)
+        serializer = RecipeDetailSerializer(recipe)  # Serialize the recipe with the detail serializer
+        self.assertEqual(res.data, serializer.data)  # Assert that the response data matches the serialized data
+        self.assertEqual(res.status_code, status.HTTP_200_OK)  # Assert that the response status is 200
 
     def test_create_recipe(self):
-        """Test creating a recipe"""
+        """Test creating a recipe"""  # Docstring for the test
 
         payload = {
-            "title": "Sample recipe",
-            "time_minutes": 30,
-            "price": Decimal("5.99"),
+            "title": "Sample recipe",  # Title for the new recipe
+            "time_minutes": 30,  # Time in minutes for the new recipe
+            "price": Decimal("5.99"),  # Price for the new recipe
         }
-        res = self.client.post(RECIPES_URL, payload)
-        self.assertEqual(res.status_code, status.HTTP_201_CREATED)
-        recipe = Recipe.objects.get(id=res.data["id"])
+        res = self.client.post(RECIPES_URL, payload)  # Make a POST request to create a recipe
+        self.assertEqual(res.status_code, status.HTTP_201_CREATED)  # Assert that the response status is 201
+        recipe = Recipe.objects.get(id=res.data["id"])  # Get the created recipe from the database
 
-        for k, v in payload.items():
-            self.assertEqual(getattr(recipe, k), v)
-        self.assertEqual(recipe.user, self.user)
+        for k, v in payload.items():  # Loop through the payload items
+            self.assertEqual(getattr(recipe, k), v)  # Assert that each field matches the payload
+        self.assertEqual(recipe.user, self.user)  # Assert that the recipe user is the authenticated user
 
     def test_partial_update(self):
-        """Test partial update of a recipe"""
-        original_link = "https://example.com/recipe.pdf"
+        """Test partial update of a recipe"""  # Docstring for the test
+        original_link = "https://example.com/recipe.pdf"  # Store the original link
         recipe = create_recipe(
             user=self.user, title="Sample recipe title", link=original_link
-        )
+        )  # Create a recipe with a specific link
 
         payload = {
-            "title": "New recipe title",
+            "title": "New recipe title",  # New title for the recipe
         }
-        url = detail_url(recipe_id=recipe.id)
-        res = self.client.patch(url, payload)
+        url = detail_url(recipe_id=recipe.id)  # Build the detail URL for the recipe
+        res = self.client.patch(url, payload)  # Make a PATCH request to update the recipe
 
-        self.assertEqual(res.status_code, status.HTTP_200_OK)
-        recipe.refresh_from_db()
-        self.assertEqual(recipe.title, payload["title"])
-        self.assertEqual(recipe.link, original_link)
-        self.assertEqual(recipe.user, self.user)
+        self.assertEqual(res.status_code, status.HTTP_200_OK)  # Assert that the response status is 200
+        recipe.refresh_from_db()  # Refresh the recipe from the database
+        self.assertEqual(recipe.title, payload["title"])  # Assert that the title was updated
+        self.assertEqual(recipe.link, original_link)  # Assert that the link was not changed
+        self.assertEqual(recipe.user, self.user)  # Assert that the user is still the authenticated user
 
     def test_full_update(self):
-        """Test full update of recipe."""
+        """Test full update of recipe."""  # Docstring for the test
 
         recipe = create_recipe(
             user=self.user,
             title="Sample recipe title",
             link="https://example.com/recipe.pdf",
             description="Sample recipe description",
-        )
+        )  # Create a recipe with specific fields
 
         payload = {
-            "title": "New title",
-            "link": "https://example.com/new-recipe.pdf",
-            "description": "New recipe description",
-            "time_minutes": 10,
-            "price": Decimal("2.50"),
+            "title": "New title",  # New title for the recipe
+            "link": "https://example.com/new-recipe.pdf",  # New link for the recipe
+            "description": "New recipe description",  # New description
+            "time_minutes": 10,  # New time in minutes
+            "price": Decimal("2.50"),  # New price
         }
 
-        url = detail_url(recipe_id=recipe.id)
-        res = self.client.put(url, payload)
+        url = detail_url(recipe_id=recipe.id)  # Build the detail URL for the recipe
+        res = self.client.put(url, payload)  # Make a PUT request to fully update the recipe
 
-        self.assertEqual(res.status_code, status.HTTP_200_OK)
-        recipe.refresh_from_db()
-        for k, v in payload.items():
-            self.assertEqual(getattr(recipe, k), v)
-        self.assertEqual(recipe.user, self.user)
+        self.assertEqual(res.status_code, status.HTTP_200_OK)  # Assert that the response status is 200
+        recipe.refresh_from_db()  # Refresh the recipe from the database
+        for k, v in payload.items():  # Loop through the payload items
+            self.assertEqual(getattr(recipe, k), v)  # Assert that each field matches the payload
+        self.assertEqual(recipe.user, self.user)  # Assert that the user is still the authenticated user
 
     def test_update_user_returns_error(self):
-        """Test changing the recipe user results in an error"""
-        new_user = create_user(email="user2@example.com", password="test123")
-        recipe = create_recipe(user=self.user)
+        """Test changing the recipe user results in an error"""  # Docstring for the test
+        new_user = create_user(email="user2@example.com", password="test123")  # Create a new user
+        recipe = create_recipe(user=self.user)  # Create a recipe for the authenticated user
 
-        payload = {"user": new_user.id}
-        url = detail_url(recipe.id)
-        res = self.client.patch(url, payload)
+        payload = {"user": new_user.id}  # Attempt to change the user of the recipe
+        url = detail_url(recipe.id)  # Build the detail URL for the recipe
+        res = self.client.patch(url, payload)  # Make a PATCH request to update the recipe
 
-        recipe.refresh_from_db()
-        self.assertEqual(recipe.user, self.user)
+        recipe.refresh_from_db()  # Refresh the recipe from the database
+        self.assertEqual(recipe.user, self.user)  # Assert that the user was not changed
 
     def test_delete_recipe(self):
-        """Test deleting a recipe successful."""
+        """Test deleting a recipe successful."""  # Docstring for the test
 
-        recipe = create_recipe(user=self.user)
+        recipe = create_recipe(user=self.user)  # Create a recipe for the authenticated user
 
-        url = detail_url(recipe.id)
-        res = self.client.delete(url)
+        url = detail_url(recipe.id)  # Build the detail URL for the recipe
+        res = self.client.delete(url)  # Make a DELETE request to delete the recipe
 
-        self.assertEqual(res.status_code, status.HTTP_204_NO_CONTENT)
-        self.assertFalse(Recipe.objects.filter(id=recipe.id).exists())
+        self.assertEqual(res.status_code, status.HTTP_204_NO_CONTENT)  # Assert that the response status is 204
+        self.assertFalse(Recipe.objects.filter(id=recipe.id).exists())  # Assert that the recipe no longer exists
 
     def test_delete_other_user_recipe_error(self):
-        """Test deleting a recipe successful."""
+        """Test deleting a recipe successful."""  # Docstring for the test
 
-        new_user = create_user(email="user2@example.com", password="test123")
-        recipe = create_recipe(user=new_user)
+        new_user = create_user(email="user2@example.com", password="test123")  # Create a new user
+        recipe = create_recipe(user=new_user)  # Create a recipe for the new user
 
-        url = detail_url(recipe.id)
-        res = self.client.delete(url)
+        url = detail_url(recipe.id)  # Build the detail URL for the recipe
+        res = self.client.delete(url)  # Make a DELETE request to delete the recipe
 
-        self.assertEqual(res.status_code, status.HTTP_404_NOT_FOUND)
-        self.assertTrue(Recipe.objects.filter(id=recipe.id).exists())
+        self.assertEqual(res.status_code, status.HTTP_404_NOT_FOUND)  # Assert that the response status is 404
+        self.assertTrue(Recipe.objects.filter(id=recipe.id).exists())  # Assert that the recipe still exists
 
     def test_create_recipe_with_new_tags(self):
-        """Test creating a recipe with new tags"""
+        """Test creating a recipe with new tags"""  # Docstring for the test
 
         payload = {
-            "title": "Thai Prawn Curry",
-            "time_minutes": 30,
-            "price": Decimal("2.50"),
-            "tags": [{"name": "Thai"}, {"name": "Dinner"}],
+            "title": "Thai Prawn Curry",  # Title for the new recipe
+            "time_minutes": 30,  # Time in minutes
+            "price": Decimal("2.50"),  # Price
+            "tags": [{"name": "Thai"}, {"name": "Dinner"}],  # List of new tags
         }
-        res = self.client.post(RECIPES_URL, payload, format="json")
+        res = self.client.post(RECIPES_URL, payload, format="json")  # Make a POST request to create the recipe with tags
 
-        self.assertEqual(res.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(res.status_code, status.HTTP_201_CREATED)  # Assert that the response status is 201
 
-        recipe = Recipe.objects.filter(user=self.user, id=res.data.id)
-        for tag in payload["tags"]:
-            exists = recipe.tags.filter(name=tag.name, user=self.user).exists()
-            self.assertTrue(exists)
+        recipe = Recipe.objects.filter(user=self.user, id=res.data.id)  # Get the created recipe for the user
+        for tag in payload["tags"]:  # Loop through the tags in the payload
+            exists = recipe.tags.filter(name=tag.name, user=self.user).exists()  # Check if the tag exists for the user
+            self.assertTrue(exists)  # Assert that the tag exists
 
     def test_create_recipe_with_existing_tags(self):
-        """Test creating a recipe with existing tags"""
+        """Test creating a recipe with existing tags"""  # Docstring for the test
 
-        tag1 = Tag.objects.create(user=self.user, name="Indian")
+        tag1 = Tag.objects.create(user=self.user, name="Indian")  # Create an existing tag for the user
         payload = {
-            "title": "Pongal",
-            "time_minutes": 60,
-            "price": Decimal("4.50"),
-            "tags": [{'name': 'Indian'}, {'name': 'Breakfast'}],
+            "title": "Pongal",  # Title for the new recipe
+            "time_minutes": 60,  # Time in minutes
+            "price": Decimal("4.50"),  # Price
+            "tags": [{'name': 'Indian'}, {'name': 'Breakfast'}],  # List of tags (one existing, one new)
         }
-        res = self.client.post(RECIPES_URL, payload, format="json")
+        res = self.client.post(RECIPES_URL, payload, format="json")  # Make a POST request to create the recipe with tags
 
-        self.assertEqual(res.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(res.status_code, status.HTTP_201_CREATED)  # Assert that the response status is 201
 
-        recipe = Recipe.objects.filter(user=self.user, id=res.data.id)
-        for tag in payload['tags']:
-            exists = recipe.tags.filter(name=tag.name, user=self.user).exists()
-            self.assertTrue(exists)
-        tags = Tag.objects.all()
-        self.assertEqual(len(tags), 2)
+        recipe = Recipe.objects.filter(user=self.user, id=res.data.id)  # Get the created recipe for the user
+        for tag in payload['tags']:  # Loop through the tags in the payload
+            exists = recipe.tags.filter(name=tag.name, user=self.user).exists()  # Check if the tag exists for the user
+            self.assertTrue(exists)  # Assert that the tag exists
+        tags = Tag.objects.all()  # Get all tags
+        self.assertEqual(len(tags), 2)  # Assert that there are only two tags
+
+    def test_create_tag_on_update(self):
+        """Test creating new tag when update recipe."""  # Docstring for the test
+
+        recipe = create_recipe(user=self.user)  # Create a recipe for the user
+        payload = {
+            "tags": [
+                {'name': 'Lunch'}  # New tag to be added
+            ]
+        }
+        url = detail_url(recipe.id)  # Build the detail URL for the recipe
+        res = self.client.patch(url, payload, format='json')  # Make a PATCH request to update the recipe with a new tag
+
+        self.assertEqual(res.status_code, status.HTTP_200_OK)  # Assert that the response status is 200
+        new_tag = Tag.objects.get(user=self.user, name='Lunch')  # Get the newly created tag for the user
+        self.assertIn(new_tag, recipe.tags.all())  # Assert that the new tag is linked to the recipe
+
+    def test_clear_recipe_tags(self):
+        """Test clear recipe tag"""
+
+        tag = Tag.objects.create(user=self.user, name='Dessert')  # Create a tag
+        recipe = create_recipe(user=self.user)  # Create a recipe
+        recipe.tags.add(tag)  # Add the tag to the recipe
+
+        payload = {'tags': []}  # Payload to clear tags
+
+        url = detail_url(recipe.id)  # Get recipe detail URL
+        res = self.client.patch(url, payload)  # Send PATCH request
+
+        self.assertEqual(res.status_code, status.HTTP_200_OK)  # Check response status
+        recipe.refresh_from_db()  # Refresh recipe from database
+        self.assertEqual(recipe.tags.count(), 0)  # Assert tags are cleared
