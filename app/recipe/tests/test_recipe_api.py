@@ -213,9 +213,11 @@ class PrivateRecipeAPITests(TestCase):
 
         self.assertEqual(res.status_code, status.HTTP_201_CREATED)  # Assert that the response status is 201
 
-        recipe = Recipe.objects.filter(user=self.user, id=res.data.id)  # Get the created recipe for the user
+        recipes = Recipe.objects.filter(user=self.user)  # Get the created recipe for the user
+        self.assertEqual(recipes.count(), 1)
+        recipe = recipes[0]
         for tag in payload["tags"]:  # Loop through the tags in the payload
-            exists = recipe.tags.filter(name=tag.name, user=self.user).exists()  # Check if the tag exists for the user
+            exists = recipe.tags.filter(name=tag['name'], user=self.user).exists()  # Check if the tag exists for the user
             self.assertTrue(exists)  # Assert that the tag exists
 
     def test_create_recipe_with_existing_tags(self):
@@ -229,15 +231,16 @@ class PrivateRecipeAPITests(TestCase):
             "tags": [{'name': 'Indian'}, {'name': 'Breakfast'}],  # List of tags (one existing, one new)
         }
         res = self.client.post(RECIPES_URL, payload, format="json")  # Make a POST request to create the recipe with tags
-
         self.assertEqual(res.status_code, status.HTTP_201_CREATED)  # Assert that the response status is 201
+        recipes = Recipe.objects.filter(user=self.user)
+        self.assertEqual(recipes.count() , 1)
 
-        recipe = Recipe.objects.filter(user=self.user, id=res.data.id)  # Get the created recipe for the user
+        recipe = recipes[0]  # Get the created recipe for the user
+        self.assertEqual(recipe.tags.count(), 2)
+        self.assertIn(tag1, recipe.tags.all())
         for tag in payload['tags']:  # Loop through the tags in the payload
-            exists = recipe.tags.filter(name=tag.name, user=self.user).exists()  # Check if the tag exists for the user
+            exists = recipe.tags.filter(name=tag['name'], user=self.user).exists()  # Check if the tag exists for the user
             self.assertTrue(exists)  # Assert that the tag exists
-        tags = Tag.objects.all()  # Get all tags
-        self.assertEqual(len(tags), 2)  # Assert that there are only two tags
 
     def test_create_tag_on_update(self):
         """Test creating new tag when update recipe."""  # Docstring for the test
@@ -265,7 +268,7 @@ class PrivateRecipeAPITests(TestCase):
         payload = {'tags': []}  # Payload to clear tags
 
         url = detail_url(recipe.id)  # Get recipe detail URL
-        res = self.client.patch(url, payload)  # Send PATCH request
+        res = self.client.patch(url, payload, format='json')  # Send PATCH request
 
         self.assertEqual(res.status_code, status.HTTP_200_OK)  # Check response status
         recipe.refresh_from_db()  # Refresh recipe from database
