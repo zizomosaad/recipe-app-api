@@ -9,5 +9,6 @@ router = DefaultRouter()  # we can use router here because it's a viewset not an
 
 router.register("recipes", views.RecipeViewSet)
 router.register("tags", views.TagViewSet)
+router.register("ingredients", views.IngredientViewSet)
 app_name = "recipe"
 urlpatterns = [path("", include(router.urls))]
